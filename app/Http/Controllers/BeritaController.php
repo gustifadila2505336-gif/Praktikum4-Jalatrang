@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Berita;
+use App\Models\Kategori;
+use App\Models\Tag;
+use Illuminate\Support\Arr;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -10,68 +13,85 @@ use Illuminate\View\View;
 
 class BeritaController extends Controller
 {
-    public function index(Request $request): View
-    {
-        $beritas = Berita::query()
-            ->when($request->q, function ($query, $kata) {
-                $query->where(function ($query) use ($kata) {
-                    $query->where('judul', 'like', "%{$kata}%")
-                        ->orWhere('tags', 'like', "%{$kata}%");
-                });
-            })
-            ->when($request->kategori, function ($query, $kategori) {
-                $query->where('kategori', $kategori);
-            })
-            ->latest('id')
-            ->paginate(12)
-            ->withQueryString();
-
-        return view('berita.index', compact('beritas'));
-    }
-
-    public function create(): View
-    {
-        return view('berita.create');
-    }
-
-    public function store(Request $request): RedirectResponse
-    {
-        $data = $this->validasi($request);
-        $data = $this->simpanGambar($request, $data);
-
-        Berita::create($data);
-
-        return redirect()->route('berita.index')
-            ->with('success', 'Berita berhasil ditambahkan!');
-    }
-
-    public function show(Berita $berita): View
-    {
-        $berita->increment('dilihat');
-
-        $terkait = Berita::where('id', '!=', $berita->id)
-            ->latest('id')
-            ->take(5)
-            ->get();
-
-        return view('berita.show', compact('berita', 'terkait'));
-    }
-
-    public function edit(Berita $berita): View
-    {
-        return view('berita.edit', compact('berita'));
-    }
-
-    public function update(Request $request, Berita $berita): RedirectResponse
-    {
-        $data = $this->validasi($request);
-        $data = $this->simpanGambar($request, $data);
-
-        $berita->update($data);
-
-        return redirect()->route('berita.index')
-            ->with('success', 'Berita berhasil diperbarui!');
-    }
+    public function index(Request $request)
+{
+    $beritas = Berita::with(['kategori', 'tags'])
+        ->when($request->kata_kunci, function ($q, $kata) {
+            $q->where('judul', 'like', "%{$kata}%");
+        })
+        ->when($request->kategori, function ($q, $id) {
+            $q->where('kategori_id', $id);
+        })
+        ->when($request->tag, function ($q, $id) {
+            $q->whereHas('tags', fn ($t) => $t->where('tags.id', $id));
+        })
+        ->latest()
+        ->paginate(6)
+        ->withQueryString();
+ 
+    $kategoris = Kategori::orderBy('nama')->get();
+ 
+    return view('berita.index', compact('beritas', 'kategoris'));
+}
+ 
+public function create()
+{
+    return view('berita.create', [
+        'kategoris' => Kategori::orderBy('nama')->get(),
+        'tags'      => Tag::orderBy('nama')->get(),
+    ]);
+}
+ 
+public function store(Request $request)
+{
+    $data = $request->validate([
+        'judul'       => 'required|max:255',
+        'kategori_id' => 'required|exists:kategoris,id',
+        'isi'         => 'required|min:10',
+        'tags'        => 'nullable|array',
+        'tags.*'      => 'exists:tags,id',
+    ]);
+ 
+    $berita = Berita::create(Arr::except($data, 'tags'));
+    $berita->tags()->sync($data['tags'] ?? []);
+ 
+    return redirect()->route('berita.index')
+        ->with('success', 'Berita berhasil ditambahkan!');
+}
+ 
+public function show(Berita $berita)
+{
+    $berita->increment('dilihat');
+    $berita->load(['kategori', 'tags']);
+ 
+    return view('berita.show', compact('berita'));
+}
+ 
+public function edit(Berita $berita)
+{
+    return view('berita.edit', [
+        'berita'    => $berita->load('tags'),
+        'kategoris' => Kategori::orderBy('nama')->get(),
+        'tags'      => Tag::orderBy('nama')->get(),
+    ]);
+}
+ 
+public function update(Request $request, Berita $berita)
+{
+    $data = $request->validate([
+        'judul'       => 'required|max:255',
+        'kategori_id' => 'required|exists:kategoris,id',
+        'isi'         => 'required|min:10',
+        'tags'        => 'nullable|array',
+        'tags.*'      => 'exists:tags,id',
+    ]);
+ 
+    $berita->update(Arr::except($data, 'tags'));
+    $berita->tags()->sync($data['tags'] ?? []);
+ 
+    return redirect()->route('berita.index')
+        ->with('success', 'Berita berhasil diperbarui!');
+}
 
     public function destroy(Berita $berita): RedirectResponse
     {

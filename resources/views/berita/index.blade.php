@@ -34,12 +34,12 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Kategori</label>
-                            <select name="kategori" class="form-select form-select-sm">
-                                <option value="">Semua Kategori</option>
-                                @foreach (App\Models\Berita::KATEGORI as $k)
-                                    <option value="{{ $k }}" @selected(request('kategori') == $k)>{{ $k }}</option>
-                                @endforeach
-                            </select>
+                            <select name="kategori" class="form-select mb-3">
+                            <option value="">Semua Kategori</option>
+                            @foreach ($kategoris as $k)
+                                <option value="{{ $k->id }}" @selected(request('kategori') == $k->id)>{{ $k->nama }}</option>
+                            @endforeach
+                        </select>
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-sm btn-primary">Cari</button>
@@ -72,7 +72,7 @@
                             </div>
                             <div class="card-body p-3 d-flex flex-column">
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <span class="badge text-white bg-desa" style="font-size:0.7rem">{{ $berita->kategori }}</span>
+                                    <span class="badge badge-kategori text-white">{{ $berita->kategori->nama }}</span>
                                     <small class="text-muted"><i class="fas fa-calendar-alt me-1"></i>{{ $berita->tanggal->locale('id')->translatedFormat('j M Y') }}</small>
                                 </div>
                                 <h6 class="fw-bold mb-2" style="line-height:1.3;flex:1">
